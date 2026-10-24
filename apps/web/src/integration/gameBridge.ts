@@ -1,8 +1,10 @@
-import type { ActionPlan, ExecutionResult, WorldSnapshot } from "@btr/contracts";
+import type { ActionPlan, AgentPolicy, ExecutionResult, WorldSnapshot } from "@btr/contracts";
 
 export interface GameRuntime {
   getSnapshot(): WorldSnapshot;
   execute(plan: ActionPlan): Promise<ExecutionResult>;
+  executeAgentPolicy(policy: AgentPolicy): Promise<ExecutionResult>;
+  setAgentPaused(paused: boolean): void;
   undo(): Promise<ExecutionResult | null>;
 }
 
@@ -22,6 +24,13 @@ class GameBridge {
     if (!this.runtime) throw new Error("Game runtime is not ready");
     return this.runtime.execute(plan);
   }
+
+  executeAgentPolicy(policy: AgentPolicy) {
+    if (!this.runtime) throw new Error("Game runtime is not ready");
+    return this.runtime.executeAgentPolicy(policy);
+  }
+
+  setAgentPaused(paused: boolean) { this.runtime?.setAgentPaused(paused); }
 
   undo() { return this.runtime?.undo() ?? Promise.resolve(null); }
 

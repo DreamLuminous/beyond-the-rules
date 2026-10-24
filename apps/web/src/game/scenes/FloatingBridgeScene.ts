@@ -1,5 +1,5 @@
 import Phaser from "phaser";
-import type { ActionPlan, ExecutionResult, WorldSnapshot } from "@btr/contracts";
+import type { ActionPlan, AgentPolicy, ExecutionResult, WorldSnapshot } from "@btr/contracts";
 import { preflight } from "@btr/rule-engine";
 import { gameBridge, type GameRuntime } from "../../integration/gameBridge";
 import { deriveBridgeMechanismState } from "../puzzles/floatingBridgeMechanisms";
@@ -19,9 +19,6 @@ export class FloatingBridgeScene extends Phaser.Scene implements GameRuntime {
   private player!: Phaser.Physics.Arcade.Sprite;
   private objects = new Map<string, MutableBody>();
   private labels = new Map<string, string>();
-  private cursors!: Phaser.Types.Input.Keyboard.CursorKeys;
-  private aKey!: Phaser.Input.Keyboard.Key;
-  private dKey!: Phaser.Input.Keyboard.Key;
   private crate!: Phaser.Physics.Arcade.Image;
   private pressurePlate!: Phaser.GameObjects.Rectangle;
   private auxiliaryPlatform!: Phaser.Physics.Arcade.Image;
@@ -33,6 +30,9 @@ export class FloatingBridgeScene extends Phaser.Scene implements GameRuntime {
   private budget = 100;
   private undoStack: UndoFrame[] = [];
   private reachedExit = false;
+  private agentBusy = false;
+  private agentPaused = false;
+  private agentStatus: "idle" | "executing" | "paused" = "idle";
 
   constructor() { super("floating-bridge"); }
 
@@ -43,41 +43,47 @@ export class FloatingBridgeScene extends Phaser.Scene implements GameRuntime {
     this.mechanismStates.set("wind.field", "off");
     this.pressurePlatePressed = false;
     this.auxiliaryPlatformActive = false;
+    this.agentBusy = false;
+    this.agentPaused = false;
+    this.agentStatus = "idle";
     this.createTextures();
     this.drawBackdrop();
+    this.physics.world.setBounds(0, 0, 1800, 720);
+    this.cameras.main.setBounds(0, 0, 1800, 720);
     const platforms = this.physics.add.staticGroup();
-    this.addPlatform(platforms, 170, 580, 340, 72, 0x153b4f);
-    this.addPlatform(platforms, 1110, 560, 420, 92, 0x173e50);
+    this.addPlatform(platforms, 200, 580, 400, 72, 0x153b4f);
+    this.addPlatform(platforms, 1450, 560, 700, 92, 0x173e50);
     this.addPlatform(platforms, 650, 705, 230, 26, 0x102b3d);
 
-    this.player = this.physics.add.sprite(120, 490, "player").setDisplaySize(30, 48);
+    this.player = this.physics.add.sprite(140, 490, "player").setDisplaySize(30, 48);
     this.player.setTint(0xa8ffe5).setCollideWorldBounds(true).setBounce(0.05);
     this.player.body!.setSize(30, 48);
+    this.cameras.main.startFollow(this.player, true, .08, .08);
 
-    const stone1 = this.createStone("stone.front", "前方石板", 410, 520);
-    const stone2 = this.createStone("stone.middle", "中央石板", 610, 610);
-    const stone3 = this.createStone("stone.far", "远处石板", 830, 500);
-    const crate = this.createBody("crate.wind", "风场木箱", 270, 510, 44, 44, 0xc7935b);
+    const stone1 = this.createStone("stone.front", "前方石板", 460, 520);
+    const stone2 = this.createStone("stone.middle", "中央石板", 650, 610);
+    const stone3 = this.createStone("stone.far", "远处石板", 880, 500);
+    const crate = this.createBody("crate.wind", "风场木箱", 300, 510, 44, 44, 0xc7935b);
     this.crate = crate;
 
-    this.windZone = this.add.rectangle(510, 545, 500, 210, 0x54d9ec, .06)
+    this.windZone = this.add.rectangle(620, 545, 650, 210, 0x54d9ec, .06)
       .setStrokeStyle(2, 0x69dce9, .28);
-    this.add.text(350, 438, "风场 · 可用规则启动", { color: "#5f9eae", fontSize: "12px" });
-    for (let x = 340; x <= 680; x += 85) {
+    this.add.text(390, 438, "机关区 · 风场可由规则启动", { color: "#5f9eae", fontSize: "12px" });
+    for (let x = 380; x <= 820; x += 88) {
       const arrow = this.add.text(x, 565, "→", { color: "#64ddeb", fontSize: "22px" }).setAlpha(.28);
       this.tweens.add({ targets: arrow, x: x + 28, alpha: .75, duration: 900, yoyo: true, repeat: -1 });
     }
 
-    this.pressurePlate = this.add.rectangle(700, 686, 72, 10, 0xffb45e, .9)
+    this.pressurePlate = this.add.rectangle(730, 686, 72, 10, 0xffb45e, .9)
       .setStrokeStyle(2, 0xffd39b);
-    this.add.text(660, 650, "压力机关", { color: "#b48b68", fontSize: "12px" });
+    this.add.text(690, 650, "压力机关", { color: "#b48b68", fontSize: "12px" });
 
-    this.auxiliaryPlatform = this.physics.add.image(835, 684, "block")
-      .setDisplaySize(138, 18).setTint(0x3c6b79).setAlpha(.45);
+    this.auxiliaryPlatform = this.physics.add.image(930, 684, "block")
+      .setDisplaySize(180, 18).setTint(0x3c6b79).setAlpha(.45);
     const auxiliaryBody = this.auxiliaryPlatform.body as Phaser.Physics.Arcade.Body;
-    auxiliaryBody.setSize(138, 18).setAllowGravity(false).setImmovable(true);
+    auxiliaryBody.setSize(180, 18).setAllowGravity(false).setImmovable(true);
     auxiliaryBody.pushable = false;
-    this.add.text(785, 704, "辅助平台", { color: "#4e7b88", fontSize: "12px" });
+    this.add.text(878, 704, "旧桥辅助平台", { color: "#4e7b88", fontSize: "12px" });
 
     this.physics.add.collider(this.player, platforms);
     this.physics.add.collider(this.player, [stone1, stone2, stone3, crate]);
@@ -85,29 +91,19 @@ export class FloatingBridgeScene extends Phaser.Scene implements GameRuntime {
     this.physics.add.collider([stone1, stone2, stone3, crate], platforms);
     this.physics.add.collider([stone1, stone2, stone3, crate], [stone1, stone2, stone3, crate]);
 
-    const exit = this.add.rectangle(1190, 460, 54, 110, 0x64f4d2, .25).setStrokeStyle(3, 0x8effe6);
+    const exit = this.add.rectangle(1690, 460, 54, 110, 0x64f4d2, .25).setStrokeStyle(3, 0x8effe6);
     this.physics.add.existing(exit, true);
-    this.add.text(1140, 382, "出口", { color: "#9ffff0", fontSize: "15px" });
+    this.add.text(1615, 382, "待修复装置", { color: "#9ffff0", fontSize: "15px" });
     this.physics.add.overlap(this.player, exit, () => this.onReachExit());
 
-    this.cursors = this.input.keyboard!.createCursorKeys();
-    this.aKey = this.input.keyboard!.addKey(Phaser.Input.Keyboard.KeyCodes.A);
-    this.dKey = this.input.keyboard!.addKey(Phaser.Input.Keyboard.KeyCodes.D);
-
-    this.add.text(55, 400, "起点", { color: "#7ba7ba", fontSize: "14px" });
+    this.add.text(55, 400, "起点 · 指导墨点", { color: "#7ba7ba", fontSize: "14px" });
+    this.add.text(1260, 400, "终点区", { color: "#7ba7ba", fontSize: "14px" });
     this.add.text(535, 656, "隐藏的谷底平台", { color: "#426e80", fontSize: "12px" });
     gameBridge.attach(this);
     this.emitSnapshot();
   }
 
   update() {
-    const left = this.cursors.left.isDown || this.aKey.isDown;
-    const right = this.cursors.right.isDown || this.dKey.isDown;
-    this.player.setVelocityX(left ? -230 : right ? 230 : 0);
-    const jump = Phaser.Input.Keyboard.JustDown(this.cursors.space);
-    const grounded = (this.player.body as Phaser.Physics.Arcade.Body).blocked.down;
-    if (jump && grounded) this.player.setVelocityY(-470);
-
     const crateBody = this.crate.body as Phaser.Physics.Arcade.Body;
     const windEnabled = this.mechanismStates.get("wind.field") === "on";
     const crateInWindZone = Phaser.Geom.Rectangle.Contains(this.windZone.getBounds(), this.crate.x, this.crate.y);
@@ -127,7 +123,13 @@ export class FloatingBridgeScene extends Phaser.Scene implements GameRuntime {
     }));
     objects.push({
       id: "exit.portal", kind: "portal", label: "出口传送门",
-      position: { x: 1190, y: 460 }, state: { active: true }, capabilities: [], immutable: true
+      position: { x: 1690, y: 460 }, state: { active: true }, capabilities: [], immutable: true
+    });
+    objects.push({
+      id: "agent.ink", kind: "agent", label: "墨点",
+      position: { x: this.player.x, y: this.player.y },
+      state: { status: this.agentStatus, paused: this.agentPaused },
+      capabilities: ["inspect", "navigate", "push", "activate", "stop"], immutable: true
     });
     objects.push(
       {
@@ -152,7 +154,8 @@ export class FloatingBridgeScene extends Phaser.Scene implements GameRuntime {
       levelId: "floating-bridge",
       worldRevision: this.revision,
       selectedObjectIds: [],
-      objective: "跨过断裂山谷并抵达传送门",
+      objective: "指导墨点安全跨越断谷并启动对岸装置",
+      constraints: ["避免坠入断谷", "不得移动固定地形", "只执行能力清单允许的行动"],
       budgetRemaining: this.budget,
       allowedCommands: ["physics.move", "physics.setGravity", "physics.applyForce", "mechanism.setState"],
       objects
@@ -202,6 +205,108 @@ export class FloatingBridgeScene extends Phaser.Scene implements GameRuntime {
     this.revision += 1;
     this.emitSnapshot();
     return this.result(plan, "completed", before.worldRevision, `规则已生效：${plan.summary}`, stepResults);
+  }
+
+  async executeAgentPolicy(policy: AgentPolicy): Promise<ExecutionResult> {
+    const before = this.getSnapshot();
+    const reject = (code: string, message: string): ExecutionResult => ({
+      version: 1,
+      requestId: policy.requestId,
+      status: "rejected",
+      worldRevisionBefore: before.worldRevision,
+      worldRevisionAfter: this.revision,
+      stepResults: [{ stepId: policy.steps[0]?.id ?? "policy", status: "rejected", code, message, changes: [] }],
+      userMessage: message
+    });
+
+    if (policy.worldRevision !== before.worldRevision)
+      return reject("STALE_WORLD", "世界状态已经变化，请让墨点重新观察。");
+    if (this.agentBusy) return reject("AGENT_BUSY", "墨点正在执行上一项任务。");
+
+    const objectIds = new Set(before.objects.map(object => object.id));
+    const stepIds = new Set(policy.steps.map(step => step.id));
+    for (const step of policy.steps) {
+      const targetId = "targetId" in step.action ? step.action.targetId : undefined;
+      if (targetId && !objectIds.has(targetId))
+        return reject("TARGET_NOT_FOUND", `墨点找不到目标 ${targetId}。`);
+      if (step.dependsOn.some(dependency => !stepIds.has(dependency)))
+        return reject("INVALID_DEPENDENCY", `行动步骤 ${step.id} 的依赖不存在。`);
+    }
+
+    this.agentBusy = true;
+    this.agentPaused = false;
+    this.agentStatus = "executing";
+    this.emitSnapshot();
+    const stepResults: ExecutionResult["stepResults"] = [];
+
+    for (const step of policy.steps) {
+      const action = step.action;
+      let completed = true;
+      if (action.type === "inspect") {
+        const target = this.objects.get(action.targetId);
+        if (target) this.flashRule(target, "墨点正在观察");
+        await this.waitForAgent(450);
+      } else if (action.type === "navigate") {
+        const target = this.objects.get(action.targetId);
+        completed = target ? await this.moveAgentNear(target, action.stopDistance) : false;
+      } else if (action.type === "push") {
+        const target = this.objects.get(action.targetId);
+        if (target) {
+          completed = await this.moveAgentNear(target, 58);
+          if (completed) target.setVelocityX(action.direction === "right" ? action.force : -action.force);
+        } else completed = false;
+      } else if (action.type === "activate") {
+        if (action.targetId === "wind.field") {
+          this.mechanismStates.set("wind.field", "on");
+          this.showWindState(true);
+        } else completed = false;
+      } else {
+        this.player.setVelocityX(0);
+      }
+
+      if (!completed) {
+        this.player.setVelocityX(0);
+        this.agentBusy = false;
+        this.agentStatus = "idle";
+        stepResults.push({
+          stepId: step.id, status: "rejected", code: "PATH_BLOCKED",
+          message: "墨点无法安全接近目标。", changes: []
+        });
+        this.emitSnapshot();
+        return {
+          version: 1, requestId: policy.requestId, status: "rejected",
+          worldRevisionBefore: before.worldRevision, worldRevisionAfter: this.revision,
+          stepResults, userMessage: "墨点停止了：当前路径无法安全到达目标。"
+        };
+      }
+      stepResults.push({
+        stepId: step.id, status: "completed", message: "墨点已完成行动。",
+        changes: [`agent.${action.type}`]
+      });
+    }
+
+    this.player.setVelocityX(0);
+    this.agentBusy = false;
+    this.agentStatus = "idle";
+    this.revision += 1;
+    this.emitSnapshot();
+    return {
+      version: 1,
+      requestId: policy.requestId,
+      status: "completed",
+      worldRevisionBefore: before.worldRevision,
+      worldRevisionAfter: this.revision,
+      stepResults,
+      userMessage: `墨点已完成：${policy.goal}`
+    };
+  }
+
+  setAgentPaused(paused: boolean) {
+    if (!this.agentBusy) return;
+    this.agentPaused = paused;
+    this.agentStatus = paused ? "paused" : "executing";
+    if (paused) this.player.setVelocityX(0);
+    this.emitSnapshot();
   }
 
   async undo(): Promise<ExecutionResult | null> {
@@ -274,6 +379,41 @@ export class FloatingBridgeScene extends Phaser.Scene implements GameRuntime {
     this.tweens.add({ targets: text, y: text.y - 18, alpha: 0, duration: 900, onComplete: () => text.destroy() });
   }
 
+  private moveAgentNear(target: MutableBody, stopDistance: number) {
+    return new Promise<boolean>(resolve => {
+      let activeTicks = 0;
+      const timer = this.time.addEvent({
+        delay: 16,
+        loop: true,
+        callback: () => {
+          if (this.agentPaused) {
+            this.player.setVelocityX(0);
+            return;
+          }
+          activeTicks += 1;
+          const difference = target.x - this.player.x;
+          if (Math.abs(difference) <= stopDistance) {
+            this.player.setVelocityX(0);
+            timer.remove(false);
+            resolve(true);
+            return;
+          }
+          if (activeTicks > 500) {
+            this.player.setVelocityX(0);
+            timer.remove(false);
+            resolve(false);
+            return;
+          }
+          this.player.setVelocityX(Math.sign(difference) * 175);
+        }
+      });
+    });
+  }
+
+  private waitForAgent(duration: number) {
+    return new Promise<void>(resolve => this.time.delayedCall(duration, () => resolve()));
+  }
+
   private updatePressureMechanism() {
     const next = deriveBridgeMechanismState(
       { x: this.crate.x, y: this.crate.y },
@@ -336,7 +476,7 @@ export class FloatingBridgeScene extends Phaser.Scene implements GameRuntime {
   }
 
   private drawBackdrop() {
-    const width = Math.max(this.scale.width, 1280);
+    const width = Math.max(this.scale.width, 1800);
     const height = Math.max(this.scale.height, 720);
     const graphics = this.add.graphics();
     graphics.fillGradientStyle(0x0c2336, 0x0c2336, 0x06101b, 0x06101b, 1);

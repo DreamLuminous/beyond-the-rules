@@ -6,7 +6,7 @@
 }
 
 * { box-sizing: border-box; }
-body { margin: 0; min-width: 960px; min-height: 100vh; overflow: hidden; }
+body { margin: 0; min-width: 640px; min-height: 100vh; overflow: hidden; }
 button, input { font: inherit; }
 
 .app-shell {
@@ -19,10 +19,10 @@ button, input { font: inherit; }
 
 .hud {
   display: grid;
-  grid-template-columns: 1fr minmax(380px, 1.5fr) 160px;
+  grid-template-columns: minmax(170px, 1fr) minmax(260px, 1.5fr) 110px;
   align-items: center;
-  gap: 30px;
-  padding: 12px 32px;
+  gap: 16px;
+  padding: 12px 20px;
   border-bottom: 1px solid rgba(133, 209, 255, .18);
   background: rgba(5, 15, 25, .78);
   backdrop-filter: blur(18px);

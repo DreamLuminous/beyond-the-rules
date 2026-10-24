@@ -74,6 +74,35 @@ export const ActionPlanSchema = z.object({
 });
 export type ActionPlan = z.infer<typeof ActionPlanSchema>;
 
+export const AgentActionSchema = z.discriminatedUnion("type", [
+  z.object({ type: z.literal("inspect"), targetId: IdSchema }),
+  z.object({
+    type: z.literal("navigate"), targetId: IdSchema,
+    stopDistance: z.number().min(24).max(240).default(64)
+  }),
+  z.object({
+    type: z.literal("push"), targetId: IdSchema,
+    direction: z.enum(["left", "right"]), force: z.number().min(80).max(600)
+  }),
+  z.object({ type: z.literal("activate"), targetId: IdSchema }),
+  z.object({ type: z.literal("stop") })
+]);
+export type AgentAction = z.infer<typeof AgentActionSchema>;
+
+export const AgentPolicySchema = z.object({
+  version: ContractVersionSchema,
+  requestId: IdSchema,
+  worldRevision: z.number().int().nonnegative(),
+  goal: z.string().min(1).max(300),
+  constraints: z.array(z.string().min(1).max(160)).max(12),
+  steps: z.array(z.object({
+    id: IdSchema,
+    dependsOn: z.array(IdSchema).max(12).default([]),
+    action: AgentActionSchema
+  })).min(1).max(16)
+});
+export type AgentPolicy = z.infer<typeof AgentPolicySchema>;
+
 export const WorldObjectSchema = z.object({
   id: IdSchema, kind: z.string().min(1), label: z.string().min(1),
   position: Vec2Schema.optional(), state: z.record(z.union([z.string(), z.number(), z.boolean()])),
@@ -83,10 +112,56 @@ export const WorldObjectSchema = z.object({
 export const WorldSnapshotSchema = z.object({
   version: ContractVersionSchema, levelId: IdSchema, worldRevision: z.number().int().nonnegative(),
   selectedObjectIds: z.array(IdSchema), objective: z.string().min(1),
+  constraints: z.array(z.string().min(1).max(160)).max(24).default([]),
   budgetRemaining: z.number().nonnegative(), objects: z.array(WorldObjectSchema).max(100),
   allowedCommands: z.array(CommandTypeSchema).min(1)
 });
 export type WorldSnapshot = z.infer<typeof WorldSnapshotSchema>;
+
+export const LevelDraftSchema = z.object({
+  version: ContractVersionSchema,
+  id: IdSchema,
+  name: z.string().min(1).max(120),
+  size: z.object({
+    width: z.number().int().min(640).max(8_000),
+    height: z.number().int().min(360).max(4_000)
+  }),
+  spawn: Vec2Schema,
+  objective: z.string().min(1).max(300),
+  constraints: z.array(z.string().min(1).max(160)).max(24).default([]),
+  objects: z.array(z.object({
+    id: IdSchema,
+    kind: z.string().min(1).max(80),
+    position: Vec2Schema,
+    size: Vec2Schema.optional(),
+    properties: z.record(z.union([z.string(), z.number(), z.boolean()])).default({})
+  })).min(1).max(200),
+  successConditions: z.array(z.string().min(1).max(200)).min(1).max(12)
+});
+export type LevelDraft = z.infer<typeof LevelDraftSchema>;
+
+const RuleConditionSchema = z.discriminatedUnion("type", [
+  z.object({ type: z.literal("always") }),
+  z.object({
+    type: z.literal("objectState"), targetId: IdSchema, property: z.string().min(1).max(80),
+    operator: z.enum(["equals", "greaterThan", "lessThan"]),
+    value: z.union([z.string(), z.number(), z.boolean()])
+  }),
+  z.object({ type: z.literal("timer"), elapsedMs: z.number().int().min(0).max(600_000) })
+]);
+
+export const RuleScriptSchema = z.object({
+  version: ContractVersionSchema,
+  id: IdSchema,
+  name: z.string().min(1).max(120),
+  rules: z.array(z.object({
+    id: IdSchema,
+    when: RuleConditionSchema,
+    then: z.array(WorldCommandSchema).min(1).max(12),
+    once: z.boolean().default(false)
+  })).min(1).max(32)
+});
+export type RuleScript = z.infer<typeof RuleScriptSchema>;
 
 export const PlanRequestSchema = z.object({
   version: ContractVersionSchema, requestId: IdSchema,

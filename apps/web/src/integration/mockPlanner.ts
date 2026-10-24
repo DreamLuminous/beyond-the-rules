@@ -1,4 +1,27 @@
-import type { ActionPlan, WorldSnapshot } from "@btr/contracts";
+import type { ActionPlan, AgentPolicy, WorldSnapshot } from "@btr/contracts";
+
+export function createLocalDemoPolicy(input: string, world: WorldSnapshot): AgentPolicy | null {
+  if (!/(墨点|机器人|走到|靠近|观察)/.test(input) || !/(箱|木箱)/.test(input)) return null;
+  return {
+    version: 1,
+    requestId: `agent-${Date.now()}`,
+    worldRevision: world.worldRevision,
+    goal: "接近并观察风场木箱",
+    constraints: ["避免坠入断谷", "停止在可交互距离内"],
+    steps: [
+      {
+        id: "inspect-crate",
+        dependsOn: [],
+        action: { type: "inspect", targetId: "crate.wind" }
+      },
+      {
+        id: "approach-crate",
+        dependsOn: ["inspect-crate"],
+        action: { type: "navigate", targetId: "crate.wind", stopDistance: 64 }
+      }
+    ]
+  };
+}
 
 export function createLocalDemoPlan(input: string, world: WorldSnapshot): ActionPlan | null {
   const requestId = `local-${Date.now()}`;
