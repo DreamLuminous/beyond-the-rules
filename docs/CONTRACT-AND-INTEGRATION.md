@@ -42,6 +42,20 @@ type LevelValidation = {
 6. 游戏输出 `ExecutionResult` 并记录撤销令牌。
 7. AI 只能根据执行结果解释，不可宣称未发生的世界变化。
 
+## AI 服务端点（B 线，已实现）
+
+| 端点 | 输入 | 输出 |
+|---|---|---|
+| `POST /v1/plan` | `PlanRequest` | `ActionPlan`，或 `{ code, userMessage, retryable }` |
+| `POST /v1/validate-plan` | `ActionPlan` | `{ valid, plan }` 或校验问题 |
+| `POST /v1/explain` | `ExecutionResult`（+ 历史提示） | `{ facts, hints, summary }` |
+| `GET /health` | — | `{ ok, planner: "llm" \| "rule-based" }` |
+
+- 配置 `MODEL_API_KEY / MODEL_BASE_URL / MODEL_NAME` 时走 OpenAI 兼容的结构化输出；15s 超时。
+- 未配置、超时、上游错误或 Schema 修复失败时回退规则式规划器，游戏不冻结。
+- 同一 `requestId` 幂等；`/v1/explain` 只读取执行结果，建议与事实分开。
+- 前端通过 Vite 代理访问 `/v1`；语音组件提交时生成唯一 `requestId`。
+
 ## 关卡生成链路（第二关）
 
 1. 玩家自然语言 -> `WorkshopRequirements`（难度、隐藏、提示、未支持能力）。

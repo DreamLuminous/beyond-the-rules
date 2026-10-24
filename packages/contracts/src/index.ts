@@ -12,7 +12,7 @@ export type MirrorOrientation = z.infer<typeof MirrorOrientationSchema>;
 export const CommandTypeSchema = z.enum([
   "physics.move", "physics.setGravity", "physics.applyForce",
   "mechanism.rotate", "mechanism.setState", "city.setPolicy",
-  "city.advanceSimulation"
+  "city.advanceSimulation", "city.setIrrigation", "city.setFacility"
 ]);
 
 const PhysicsMoveSchema = z.object({

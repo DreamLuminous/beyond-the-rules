@@ -1,7 +1,9 @@
 import { useEffect, useRef, useState } from "react";
 import type { ActionPlan, ExecutionResult, WorldSnapshot } from "@btr/contracts";
 import { CityChapter } from "./ai-ui/CityChapter";
+import { VoiceConsole } from "./components/voice/VoiceConsole";
 import { createGame } from "./game/createGame";
+import { requestServerPlan } from "./integration/plannerClient";
 import { BRIDGE_TASKS } from "./game/puzzles/bridgeTasks";
 import {
   gameBridge,
@@ -62,7 +64,6 @@ export function App() {
   const gameRef = useRef<ReturnType<typeof createGame> | null>(null);
   const [mode, setMode] = useState<Mode>("bridge");
 
-  const [input, setInput] = useState("墨点，先走到箱子旁边，观察周围的机关");
   const [status, setStatus] = useState("等待你的任务");
   const [snapshot, setSnapshot] = useState<WorldSnapshot | null>(null);
   const [history, setHistory] = useState<HistoryItem[]>([]);
@@ -192,7 +193,17 @@ export function App() {
       return;
     }
 
-    setStatus("正在理解并预检环境规则…");
+    setStatus("正在请求 AI 规划服务…");
+    const reply = await requestServerPlan(text, world, `req-ui-${Date.now()}`);
+    if (reply?.kind === "plan") {
+      const result = await gameBridge.execute(reply.plan);
+      setHistory(items => [{ input: text, result }, ...items].slice(0, 8));
+      setStatus(result.userMessage);
+      return;
+    }
+    if (reply?.kind === "error") setStatus(reply.message);
+
+    setStatus("AI 服务不可用，改用本地规则预检…");
     const plan: ActionPlan | null = createLocalDemoPlan(text, world);
     if (!plan) {
       setStatus("当前演示支持：走到第一块石板、用石板搭路、补上缺口，或用规则改变石头与风场");
@@ -202,10 +213,6 @@ export function App() {
     const result = await gameBridge.execute(plan);
     setHistory(items => [{ input: text, result }, ...items].slice(0, 6));
     setStatus(result.userMessage);
-  }
-
-  async function submitRule() {
-    await runPhrase(input);
   }
 
   async function undo() {
@@ -352,17 +359,11 @@ export function App() {
       <section className="rule-console">
         {mode === "bridge" ? (
           <>
-            <div className="rule-input-wrap">
-              <button className="mic" type="button" disabled title="语音将在 B 线接入">●</button>
-              <input
-                value={input}
-                onChange={event => setInput(event.target.value)}
-                onKeyDown={event => event.key === "Enter" && void submitRule()}
-                aria-label="给墨点下达任务"
-                placeholder="告诉墨点目标，或输入一条改变世界的规则…"
-              />
-              <button className="primary" type="button" onClick={() => void submitRule()}>交给墨点</button>
-              <button className="secondary" type="button" onClick={toggleAgent}>{agentPaused ? "继续" : "暂停"}</button>
+            <VoiceConsole onSubmit={utterance => runPhrase(utterance)} />
+            <div className="bridge-actions">
+              <button className="secondary" type="button" onClick={toggleAgent}>
+                {agentPaused ? "继续" : "暂停"}
+              </button>
               <button className="secondary" type="button" onClick={() => void undo()}>撤销</button>
             </div>
             <div className="status-line"><i />{status}</div>

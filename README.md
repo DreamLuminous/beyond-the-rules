@@ -12,6 +12,15 @@
 桥板缩回时它会停在缺口前报告 `PATH_BLOCKED`，你可以说“用石板补上缺口”或点“让墨点重新规划”。
 通关后显示共创总结（用时、引擎执行规则数、交流次数）。也支持暂停、撤销和 `ExecutionResult` 回执。
 
+第一关的输入已接入语音：按住“按住说话”用中文说出目标，识别结果可先修改再提交；麦克风被拒绝、
+浏览器不支持或没有声音时自动提示，并保留文字输入。Chrome / Edge 为优先测试平台。
+
+**AI 规划服务（`apps/api`）**
+`/v1/plan` 接收 `PlanRequest`，输出经 Zod 二次校验的 `ActionPlan`：配置了 `MODEL_API_KEY` /
+`MODEL_BASE_URL` / `MODEL_NAME` 时走 OpenAI 兼容接口的结构化输出，未配置、超时或上游失败时自动回退
+到内置规则式规划器，游戏不会因此冻结。另有 `/v1/validate-plan` 与 `/v1/explain`（只根据
+`ExecutionResult` 解释，不虚构世界变化）。同一 `requestId` 幂等。
+
 **第二关 · 回声工坊（AI 设计，人类挑战）**
 在章节切换里进入“第二关”，描述你想玩的挑战（例如“需要反射光线、有点难、最好有隐藏区域”），
 墨点会生成 `LevelDraft`，验证器在网格上实际搜索镜面朝向、闸门状态与可达路径，通过后才允许试玩。
@@ -36,13 +45,16 @@
   可玩工坊场景、反馈重设计、隐藏区域与版本对比。
 - 第三关系统层：自然语言生成受限 `RuleScript`、第一条匹配规则的解释器、七日确定性模拟、
   干旱与泵站故障、备用泵探索、三层规则查看、反馈修订与版本对比。
-- 尚未实现：语音输入、城市可行走探索地图、序境实验室、完整成就系统。
+- B 线 AI 服务：`/v1/plan` 规则式 + OpenAI 兼容 LLM 结构化输出、指代消解、错误码、15s 超时与回退、
+  幂等、`/v1/explain` 结果解释；36 条回归测试。
+- 第一关语音输入：Web Speech API（中文）、识别文本可修正、麦克风拒绝/不支持/无声降级、文字兜底。
+- 尚未实现：城市可行走探索地图、序境实验室、完整成就系统；第二、三关仍用本地 Mock 生成器，尚未调用 AI 服务。
 
 ## 项目结构
 
 ```text
-apps/web              Phaser 游戏、React 界面、本地 Mock 设计器
-apps/api              AI、语音和解释服务（占位，尚未接入真实模型）
+apps/web              Phaser 游戏、React 界面、语音输入、本地 Mock 设计器
+apps/api              AI 规划服务：意图解析、指代消解、LLM 适配、结果解释
 packages/contracts    双方唯一共享协议源（Zod）
 packages/rule-engine  计划预检与错误码
 packages/level-data   关卡数据与能力声明
@@ -71,11 +83,14 @@ docs                  设计共识、分工、接口与联调说明
 ```bash
 corepack enable
 pnpm install
-pnpm dev        # web + api
+cp .env.example .env   # 可选：填 MODEL_API_KEY / MODEL_BASE_URL / MODEL_NAME 才走真实模型
+pnpm dev               # 同时启动 web(5173) 与 api(8787)，Vite 已代理 /v1 和 /health
 pnpm test
 pnpm typecheck
 pnpm build
 ```
+
+不配置模型时 `/v1/plan` 使用内置规则式规划器，语音与文字输入、三关流程仍可完整演示。
 
 Node.js 建议使用 20 LTS。密钥仅写入本地 `.env`，不得提交。
 
