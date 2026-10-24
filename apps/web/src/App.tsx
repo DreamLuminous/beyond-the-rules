@@ -13,6 +13,8 @@ import {
 } from "./integration/gameBridge";
 import { createBridgeDirection } from "./integration/bridgeDirector";
 import { createLocalDemoPlan, createLocalDemoPolicy } from "./integration/mockPlanner";
+import { editWorkshopDraft } from "./integration/workshopEditor";
+import { validateLevelDraft } from "./game/workshop/validator";
 import {
   designWorkshopLevel,
   redesignWithFeedback,
@@ -79,6 +81,7 @@ export function App() {
 
   const [brief, setBrief] = useState(DEFAULT_BRIEF);
   const [feedback, setFeedback] = useState("");
+  const [editText, setEditText] = useState("");
   const [design, setDesign] = useState<DesignOutcome | null>(null);
   const [previousDesign, setPreviousDesign] = useState<DesignOutcome | null>(null);
   const [workshopStatus, setWorkshopStatus] = useState(
@@ -292,6 +295,37 @@ export function App() {
     setFeedback("");
   }
 
+  function applyEdit() {
+    if (!design) return;
+    const result = editWorkshopDraft(design.draft, editText);
+    if (!result.ok) {
+      setWorkshopStatus(result.message);
+      return;
+    }
+    const validation = validateLevelDraft(result.draft);
+    if (!validation.ok) {
+      setWorkshopStatus(
+        `这样改会不可解：${validation.issues.map(issue => issue.message).join("；") || "请换个位置试试"}。`
+      );
+      return;
+    }
+    const next: DesignOutcome = {
+      ...design,
+      draft: result.draft,
+      validation,
+      revisions: design.revisions + 1,
+      feedbackApplied: [result.change]
+    };
+    setPreviousDesign(design);
+    setDesign(next);
+    setWorkshopResult(null);
+    setHiddenFound(false);
+    gameRef.current?.registry.set("workshop.draft", result.draft);
+    setWorkshopStatus(`已改关卡：${result.change}。验证器确认仍然有解，可以试玩。`);
+    setLog(items => [`你：${editText}`, `墨点：${result.change}`, ...items].slice(0, 10));
+    setEditText("");
+  }
+
   const chapter =
     mode === "bridge"
       ? "第一章 · 人制定任务，AI 自主行动"
@@ -380,6 +414,24 @@ export function App() {
                 </button>
               )}
             </div>
+            <div className="object-legend" aria-label="可操控物体颜色">
+              {[
+                ["#4d9dff", "蓝色石板（前方）"],
+                ["#46d5c8", "青色石板（中央）"],
+                ["#6fe08a", "绿色石板（远处）"],
+                ["#b98cff", "紫色石板（检修）"],
+                ["#ffb057", "橙色木箱"],
+                ["#54d9ec", "青色风场"],
+                ["#ffd24a", "黄色压力机关"],
+                ["#dfe9f5", "白色辅助平台"],
+                ["#64f4d2", "翠绿装置"]
+              ].map(([color, label]) => (
+                <span key={label}>
+                  <i style={{ background: color }} />
+                  {label}
+                </span>
+              ))}
+            </div>
             {bridgeDone && (
               <div className="bridge-summary">
                 <strong>共创总结</strong>
@@ -449,6 +501,18 @@ export function App() {
                     placeholder="试玩后告诉我：太难 / 太简单 / 想要隐藏区域 / 某个地方跳不过去…"
                   />
                   <button className="secondary" type="button" onClick={applyFeedback}>按反馈修改</button>
+                </div>
+                <div className="feedback-row">
+                  <input
+                    value={editText}
+                    onChange={event => setEditText(event.target.value)}
+                    onKeyDown={event => event.key === "Enter" && applyEdit()}
+                    aria-label="直接修改关卡"
+                    placeholder="直接改关卡：把镜子往右移一格 / 把出口往左移两格 / 去掉隐藏区域"
+                  />
+                  <button className="secondary" type="button" onClick={applyEdit} disabled={!design}>
+                    改关卡
+                  </button>
                 </div>
                 {workshopResult && (
                   <p className="play-result">

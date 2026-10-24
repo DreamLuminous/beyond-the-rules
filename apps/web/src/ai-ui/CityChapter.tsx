@@ -25,6 +25,30 @@ export function CityChapter({ autoRun = false }: { autoRun?: boolean }) {
   const [exploredSparePump, setExploredSparePump] = useState(false);
   const [log, setLog] = useState<string[]>([]);
   const [status, setStatus] = useState("描述你想要的城市运行策略，墨点会写成受限规则程序。");
+  const [playhead, setPlayhead] = useState(0);
+  const [playing, setPlaying] = useState(false);
+
+  useEffect(() => {
+    if (!playing || !assessment) return;
+    if (playhead >= assessment.reports.length) {
+      setPlaying(false);
+      return;
+    }
+    const timer = window.setTimeout(
+      () => setPlayhead(value => Math.min(assessment.reports.length, value + 1)),
+      1100
+    );
+    return () => window.clearTimeout(timer);
+  }, [playing, playhead, assessment]);
+
+  useEffect(() => {
+    if (!assessment || playhead < assessment.reports.length) return;
+    setStatus(
+      assessment.passed
+        ? "七日检查通过。结果由城市模拟器逐日计算，不是模型自述。"
+        : `未通过：${assessment.failures.join("；")}。先看看哪一天出了问题，再改规则。`
+    );
+  }, [assessment, playhead]);
 
   useEffect(() => {
     if (!design) {
@@ -47,6 +71,8 @@ export function CityChapter({ autoRun = false }: { autoRun?: boolean }) {
     setDesign(outcome);
     setAssessment(null);
     setPreviousAssessment(null);
+    setPlayhead(0);
+    setPlaying(false);
     setStatus("规则已生成。先看逻辑或代码，再运行七日模拟让引擎给出真实结果。");
     pushLog(`你：${brief}`);
     pushLog(`墨点：${outcome.explanation}`);
@@ -57,16 +83,10 @@ export function CityChapter({ autoRun = false }: { autoRun?: boolean }) {
     const next = runCitySimulation(design.script, { exploredSparePump });
     setPreviousAssessment(assessment);
     setAssessment(next);
-    if (next.passed) {
-      setStatus("七日检查通过。结果由城市模拟器逐日计算，不是模型自述。");
-    } else {
-      setStatus(`未通过：${next.failures.join("；")}。先看看哪一天出了问题，再改规则。`);
-    }
-    pushLog(
-      `运行：${next.passed ? "通过" : "未通过"}；居民均值 ${percent(next.averageResidentialSupply)}，最低能源 ${percent(
-        Math.min(...next.reports.map(report => report.energyReliability))
-      )}。`
-    );
+    setPlayhead(1);
+    setPlaying(true);
+    setStatus("城市开始运转：逐日观察水库、供水、能源与生态的变化。");
+    pushLog("你：开始七日模拟（可以暂停、单步推进或跳到结果）。");
   }
 
   function revise() {
@@ -74,6 +94,8 @@ export function CityChapter({ autoRun = false }: { autoRun?: boolean }) {
     const next = reviseCityScript(design, feedback, { exploredSparePump });
     setDesign(next);
     setAssessment(null);
+    setPlayhead(0);
+    setPlaying(false);
     setStatus("已按反馈生成新版本。旧版本的运行结果保留在下方对比。");
     pushLog(`你：${feedback}`);
     pushLog(`墨点：${next.changes.join("；")}`);
@@ -87,8 +109,10 @@ export function CityChapter({ autoRun = false }: { autoRun?: boolean }) {
     pushLog("你：巡查泵站，发现备用泵维护记录（现在可以让墨点启用它）。");
   }
 
-  const lastReport: CityDayReport | undefined = assessment?.reports[assessment.reports.length - 1];
-  const reportsByDay = new Map((assessment?.reports ?? []).map(report => [report.day, report]));
+  const visibleReports = assessment ? assessment.reports.slice(0, playhead) : [];
+  const lastReport: CityDayReport | undefined = visibleReports[visibleReports.length - 1];
+  const reportsByDay = new Map(visibleReports.map(report => [report.day, report]));
+  const finished = Boolean(assessment && playhead >= assessment.reports.length);
   const minEnergy = assessment ? Math.min(...assessment.reports.map(report => report.energyReliability)) : null;
 
   return (
@@ -97,14 +121,28 @@ export function CityChapter({ autoRun = false }: { autoRun?: boolean }) {
         <div className="city-board-head">
           <div>
             <span className="eyebrow">断流之城 · 城市状态</span>
-            <strong>{lastReport ? `第 ${lastReport.day} 天结束` : "尚未运行模拟"}</strong>
+            <strong>
+              {assessment
+                ? finished
+                  ? "七日结束"
+                  : `第 ${Math.max(1, playhead)}/7 天 · 运行中`
+                : "尚未运行模拟"}
+            </strong>
           </div>
           <div
             className={`city-verdict ${
-              assessment ? (assessment.passed ? "ok" : "bad") : "idle"
+              assessment && finished ? (assessment.passed ? "ok" : "bad") : "idle"
             }`}
           >
-            {assessment ? (assessment.passed ? "七日检查通过" : "七日检查未通过") : "等待运行"}
+            {assessment
+              ? finished
+                ? assessment.passed
+                  ? "七日检查通过"
+                  : "七日检查未通过"
+                : playing
+                  ? "观察中…"
+                  : "已暂停"
+              : "等待运行"}
           </div>
         </div>
 
@@ -118,6 +156,7 @@ export function CityChapter({ autoRun = false }: { autoRun?: boolean }) {
                 className="city-day"
                 data-weather={report?.weather ?? (day === 3 || day === 4 ? "drought" : "normal")}
                 data-alert={report ? report.energyReliability < 75 || report.residentialSupply < 90 : false}
+                data-current={Boolean(assessment) && !finished && day === playhead}
               >
                 <b>第 {day} 天</b>
                 <span>{report ? WEATHER_LABEL[report.weather] : day === 3 || day === 4 ? "旱" : "晴"}</span>
@@ -126,17 +165,28 @@ export function CityChapter({ autoRun = false }: { autoRun?: boolean }) {
                     ? `水 ${Math.round(report.reservoir)}${
                         report.events.some(event => event.includes("泵站")) ? " · 泵停" : ""
                       }`
-                    : "—"}
+                    : assessment
+                      ? "待运行"
+                      : "—"}
                 </small>
               </div>
             );
           })}
         </div>
 
+        {lastReport && lastReport.events.length > 0 && (
+          <div className="city-event" data-weather={lastReport.weather}>
+            <b>第 {lastReport.day} 天</b> · {lastReport.events.join(" · ")}
+          </div>
+        )}
+
         <div className="city-grid">
           <article className="city-card">
             <span>水库</span>
             <strong>{Math.round(lastReport?.reservoir ?? 70)}</strong>
+            <div className="city-bar">
+              <i style={{ width: `${Math.min(100, lastReport?.reservoir ?? 70)}%` }} />
+            </div>
             <small>警戒线 30 · 低于它进入告急配水</small>
             <button type="button" className="link" onClick={() => pushLog("你：巡查水库，确认警戒线和当日来水。")}>
               巡查
@@ -159,6 +209,9 @@ export function CityChapter({ autoRun = false }: { autoRun?: boolean }) {
           <article className="city-card">
             <span>农田</span>
             <strong>{percent(lastReport?.soilMoisture ?? 48)}</strong>
+            <div className="city-bar">
+              <i style={{ width: `${Math.min(100, lastReport?.soilMoisture ?? 48)}%` }} />
+            </div>
             <small>湿度低于 35 需要灌溉，但会挤占居民用水</small>
             <button type="button" className="link" onClick={() => pushLog("你：巡查农田，记下土壤湿度阈值。")}>
               巡查
@@ -167,21 +220,30 @@ export function CityChapter({ autoRun = false }: { autoRun?: boolean }) {
           <article className="city-card">
             <span>工厂</span>
             <strong>{percent(lastReport?.industryOutput ?? 100)}</strong>
+            <div className="city-bar">
+              <i style={{ width: `${Math.min(100, lastReport?.industryOutput ?? 100)}%` }} />
+            </div>
             <small>工业上限越低，越省水也越省电</small>
           </article>
           <article className="city-card">
             <span>居民区</span>
             <strong>{percent(lastReport?.residentialSupply ?? 100)}</strong>
+            <div className="city-bar">
+              <i style={{ width: `${Math.min(100, lastReport?.residentialSupply ?? 100)}%` }} />
+            </div>
             <small>通关要求七日平均 ≥ 90%</small>
           </article>
           <article className="city-card">
             <span>生态</span>
             <strong>{percent(lastReport?.ecologyIndex ?? 70)}</strong>
+            <div className="city-bar">
+              <i style={{ width: `${Math.min(100, lastReport?.ecologyIndex ?? 70)}%` }} />
+            </div>
             <small>下游流量不足会让生态指数持续下降</small>
           </article>
         </div>
 
-        {assessment && (
+        {finished && assessment && (
           <div className="city-summary">
             <span>居民均值 {percent(assessment.averageResidentialSupply)}</span>
             <span>能源均值 {percent(assessment.averageEnergyReliability)}</span>
@@ -203,7 +265,48 @@ export function CityChapter({ autoRun = false }: { autoRun?: boolean }) {
             placeholder="例如：缺水时先保居民，再限制工业，也要照顾下游生态…"
           />
           <button className="primary" type="button" onClick={generate}>让墨点写规则</button>
-          <button className="secondary" type="button" onClick={run} disabled={!design}>运行七日</button>
+          <button className="secondary" type="button" onClick={run} disabled={!design}>
+            {assessment ? "重新运行" : "运行七日"}
+          </button>
+          {assessment && !finished && (
+            <>
+              <button className="secondary" type="button" onClick={() => setPlaying(value => !value)}>
+                {playing ? "暂停" : "继续"}
+              </button>
+              <button
+                className="secondary"
+                type="button"
+                onClick={() => {
+                  setPlaying(false);
+                  setPlayhead(value => Math.min(assessment.reports.length, value + 1));
+                }}
+              >
+                下一天
+              </button>
+              <button
+                className="secondary"
+                type="button"
+                onClick={() => {
+                  setPlaying(false);
+                  setPlayhead(assessment.reports.length);
+                }}
+              >
+                跳到结果
+              </button>
+            </>
+          )}
+          {assessment && finished && (
+            <button
+              className="secondary"
+              type="button"
+              onClick={() => {
+                setPlayhead(1);
+                setPlaying(true);
+              }}
+            >
+              重看过程
+            </button>
+          )}
         </div>
         <div className="status-line"><i />{status}</div>
 
@@ -274,7 +377,7 @@ export function CityChapter({ autoRun = false }: { autoRun?: boolean }) {
                 </tr>
               </thead>
               <tbody>
-                {assessment.reports.map(report => (
+                {visibleReports.map(report => (
                   <tr key={report.day} data-alert={report.energyReliability < 75 || report.residentialSupply < 90}>
                     <td>{report.day}</td>
                     <td>{WEATHER_LABEL[report.weather]}</td>
@@ -288,7 +391,7 @@ export function CityChapter({ autoRun = false }: { autoRun?: boolean }) {
                 ))}
               </tbody>
             </table>
-            {assessment.failures.length > 0 && (
+            {finished && assessment.failures.length > 0 && (
               <ul className="city-failures">
                 {assessment.failures.map(failure => <li key={failure}>{failure}</li>)}
               </ul>

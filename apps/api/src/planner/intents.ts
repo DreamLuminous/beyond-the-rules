@@ -54,6 +54,21 @@ export function parseIntent(raw: string): ParsedIntent {
   if (/落下|掉下去|放下来|降下来|恢复重力|变回正常/.test(text)) {
     return { text, sequential, simultaneous, action: { verb: "sink", slow: /慢慢|缓缓|逐渐/.test(text) } };
   }
+  // 跳 / 弹起：把物体向上弹（允许“离谱”的操控）
+  if (/跳起来|跳一下|往上跳|弹起|弹飞|蹦起来|跳/.test(text)) {
+    return { text, sequential, simultaneous, action: { verb: "push", direction: "up" } };
+  }
+  // 扔 / 丢 / 移到最右、最左、天上：大位移
+  if (/扔|丢|甩|抛|踢飞/.test(text) || /移到(最右|最左|天上|空中|最高|中间)/.test(text)) {
+    const dx = /最右|右边|右侧/.test(text) ? 520 : /最左|左边|左侧/.test(text) ? -520 : 0;
+    const dy = /天上|空中|上空|最高/.test(text) ? -420 : /地面|地上/.test(text) ? 300 : 0;
+    return {
+      text,
+      sequential,
+      simultaneous,
+      action: { verb: "move", dx: dx === 0 && dy === 0 ? 300 : dx, dy }
+    };
+  }
   // 推
   {
     const m = text.match(/推|顶|撞/);

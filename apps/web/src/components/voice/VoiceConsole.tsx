@@ -1,4 +1,4 @@
-/**
+﻿/**
  * M1：语音交互组件（React，Chrome 优先 Web Speech API）。
  * 职责边界（apps/web/src/components/voice/README.md）：
  *  - 只负责录音状态、转写文本、提交与取消、错误与文本降级；
@@ -123,34 +123,22 @@ export function VoiceConsole({ onSubmit, cancelRef, disabled }: VoiceConsoleProp
 
   return (
     <div className="voice-console" data-recording={recording} data-submitting={submitting}>
-      {/* 按住说话 / 点击录音 */}
+      {/* 按住说话：按下开始、松开结束；指针事件同时覆盖鼠标与触屏 */}
       <button
         type="button"
+        className="voice-mic"
         disabled={disabled || !Recognition || submitting}
-        onMouseDown={startRecording}
-        onMouseUp={stopRecording}
-        onTouchStart={(e) => {
-          e.preventDefault();
+        onPointerDown={event => {
+          event.preventDefault();
           startRecording();
         }}
-        onTouchEnd={stopRecording}
+        onPointerUp={stopRecording}
+        onPointerLeave={stopRecording}
+        onPointerCancel={stopRecording}
+        onContextMenu={event => event.preventDefault()}
       >
         {recording ? "松开结束" : "按住说话"}
       </button>
-
-      {/* 识别文本展示与快速修正 */}
-      {transcript && (
-        <div className="transcript">
-          <span>识别结果：</span>
-          <input value={transcript} onChange={(e) => setTranscript(e.target.value)} aria-label="识别文本修正" />
-          <button type="button" disabled={submitting} onClick={() => void submit(transcript)}>
-            确认提交
-          </button>
-        </div>
-      )}
-
-      {/* 降级提示：麦克风拒绝 / 无声 / 不支持 */}
-      {micStatus !== "idle" && micStatus !== "listening" && <p role="status">{DEGRADE_TEXT[micStatus]}</p>}
 
       {/* 文本输入始终可用 */}
       <form
@@ -176,6 +164,24 @@ export function VoiceConsole({ onSubmit, cancelRef, disabled }: VoiceConsoleProp
           </button>
         )}
       </form>
+
+      {/* 固定高度的识别行：没有结果时也占位，避免整个控制台跳动 */}
+      <div className="transcript" data-empty={!transcript}>
+        {transcript ? (
+          <>
+            <span>识别结果：</span>
+            <input value={transcript} onChange={(e) => setTranscript(e.target.value)} aria-label="识别文本修正" />
+            <button type="button" disabled={submitting} onClick={() => void submit(transcript)}>
+              确认提交
+            </button>
+          </>
+        ) : (
+          <span className="transcript-placeholder">按住左侧按钮说话；识别结果会显示在这里，也可以直接打字。</span>
+        )}
+      </div>
+
+      {/* 降级提示始终占位，避免出现提示时布局上移 */}
+      <p role="status">{micStatus !== "idle" && micStatus !== "listening" ? DEGRADE_TEXT[micStatus] : ""}</p>
     </div>
   );
 }

@@ -1,4 +1,4 @@
-﻿import Phaser from "phaser";
+import Phaser from "phaser";
 import type { ActionPlan, AgentPolicy, ExecutionResult, WorldSnapshot } from "@btr/contracts";
 import { preflight } from "@btr/rule-engine";
 import { gameBridge, type GameRuntime } from "../../integration/gameBridge";
@@ -86,11 +86,11 @@ export class FloatingBridgeScene extends Phaser.Scene implements GameRuntime {
     this.player.body!.setSize(30, 48);
     this.cameras.main.startFollow(this.player, true, .08, .08);
 
-    const stone1 = this.createStone("stone.front", "前方石板", 460, 556);
-    const stone2 = this.createStone("stone.middle", "中央石板", 650, 610);
-    const stone3 = this.createStone("stone.far", "远处石板", 880, 500);
-    const stone4 = this.createStone("stone.slab", "检修石板", 1050, 560);
-    const crate = this.createBody("crate.wind", "风场木箱", 300, 510, 44, 44, 0xc7935b);
+    const stone1 = this.createStone("stone.front", "蓝色石板（前方）", 460, 556, 0x4d9dff);
+    const stone2 = this.createStone("stone.middle", "青色石板（中央）", 650, 610, 0x46d5c8);
+    const stone3 = this.createStone("stone.far", "绿色石板（远处）", 880, 500, 0x6fe08a);
+    const stone4 = this.createStone("stone.slab", "紫色石板（检修）", 1050, 560, 0xb98cff);
+    const crate = this.createBody("crate.wind", "橙色木箱", 300, 510, 44, 44, 0xffb057);
     this.crate = crate;
 
     this.windZone = this.add.rectangle(620, 545, 650, 210, 0x54d9ec, .06)
@@ -170,7 +170,7 @@ export class FloatingBridgeScene extends Phaser.Scene implements GameRuntime {
       immutable: false
     }));
     objects.push({
-      id: "exit.portal", kind: "portal", label: "出口传送门",
+      id: "exit.portal", kind: "portal", label: "翠绿装置",
       position: { x: 1690, y: 460 }, state: { active: true }, capabilities: [], immutable: true
     });
     objects.push({
@@ -181,18 +181,18 @@ export class FloatingBridgeScene extends Phaser.Scene implements GameRuntime {
     });
     objects.push(
       {
-        id: "wind.field", kind: "field", label: "断谷风场",
+        id: "wind.field", kind: "field", label: "青色风场",
         position: { x: this.windZone.x, y: this.windZone.y },
         state: { state: this.mechanismStates.get("wind.field") ?? "off" },
         capabilities: ["setState"], immutable: false
       },
       {
-        id: "pressure.plate", kind: "mechanism", label: "谷底压力机关",
+        id: "pressure.plate", kind: "mechanism", label: "黄色压力机关",
         position: { x: this.pressurePlate.x, y: this.pressurePlate.y },
         state: { pressed: this.pressurePlatePressed }, capabilities: [], immutable: true
       },
       {
-        id: "platform.auxiliary", kind: "platform", label: "辅助升降平台",
+        id: "platform.auxiliary", kind: "platform", label: "白色辅助平台",
         position: { x: this.auxiliaryPlatform.x, y: this.auxiliaryPlatform.y },
         state: { active: this.auxiliaryPlatformActive }, capabilities: [], immutable: true
       }
@@ -397,8 +397,8 @@ export class FloatingBridgeScene extends Phaser.Scene implements GameRuntime {
     };
   }
 
-  private createStone(id: string, label: string, x: number, y: number) {
-    const stone = this.createBody(id, label, x, y, 116, 24, 0x4b8292);
+  private createStone(id: string, label: string, x: number, y: number, tint: number) {
+    const stone = this.createBody(id, label, x, y, 116, 24, tint);
     const body = stone.body as Phaser.Physics.Arcade.Body;
     body.setAllowGravity(false).setImmovable(true);
     return stone;
@@ -513,7 +513,7 @@ export class FloatingBridgeScene extends Phaser.Scene implements GameRuntime {
 
   private setAuxiliaryPlatformActive(active: boolean, animate: boolean) {
     this.auxiliaryPlatformActive = active;
-    this.auxiliaryPlatform.setTint(active ? 0x63e7c6 : 0x3c6b79).setAlpha(active ? 1 : .45);
+    this.auxiliaryPlatform.setTint(active ? 0x63e7c6 : 0xdfe9f5).setAlpha(active ? 1 : .6);
     const destinationY = active ? 590 : 684;
     this.tweens.killTweensOf(this.auxiliaryPlatform);
     if (!animate) {

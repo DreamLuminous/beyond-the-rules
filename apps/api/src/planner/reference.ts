@@ -28,6 +28,25 @@ export function normalizeUtterance(raw: string): string {
   return s;
 }
 
+const COLOR_WORDS: Array<[RegExp, string]> = [
+  [/蓝/, "蓝"],
+  [/青/, "青"],
+  [/绿/, "绿"],
+  [/紫/, "紫"],
+  [/橙|橘/, "橙"],
+  [/黄/, "黄"],
+  [/白/, "白"],
+  [/红/, "红"]
+];
+
+/** 提取颜色词：场景里的可操控物体会用颜色命名，方便玩家自由指代。 */
+export function extractColorWord(utterance: string): string | null {
+  for (const [pattern, name] of COLOR_WORDS) {
+    if (pattern.test(utterance)) return name;
+  }
+  return null;
+}
+
 /** 从原话中提取被谈论的物体类别词。 */
 export function extractKindWords(utterance: string): string[] {
   const words: string[] = [];
@@ -98,11 +117,19 @@ export function resolveTargets(utterance: string, world: WorldSnapshot): Resolut
   const labelHits = objects.filter((o) => utterance.includes(o.label));
   if (labelHits.length === 1) return { kind: "resolved", objects: labelHits };
 
+  // 2.5) 颜色词：场景物体用颜色命名，颜色唯一时直接命中
+  const color = extractColorWord(utterance);
+  if (color) {
+    const colorHits = objects.filter((o) => o.label.includes(color));
+    if (colorHits.length === 1) return { kind: "resolved", objects: colorHits };
+  }
+
   // 3) 类别词 + 空间关系/数量
   const kindWords = extractKindWords(utterance);
   const count = extractCount(utterance);
   for (const kw of kindWords) {
-    const sameKind = objects.filter((o) => o.kind === kw || o.label.includes(kw));
+    let sameKind = objects.filter((o) => o.kind === kw || o.label.includes(kw));
+    if (color) sameKind = sameKind.filter((o) => o.label.includes(color));
     if (sameKind.length === 0) continue;
 
     if (/全部|所有|每个|每一块/.test(utterance)) {

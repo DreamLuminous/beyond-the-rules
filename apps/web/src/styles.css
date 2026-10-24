@@ -204,15 +204,17 @@ details b[data-status="rejected"] { color: #ff9e9e; }
 
 /* 语音输入（B 线组件） */
 .voice-console {
-  max-width: 1100px; margin: 0 auto; display: flex; flex-wrap: wrap;
-  gap: 8px; align-items: center;
+  max-width: 1100px; margin: 0 auto; display: grid;
+  grid-template-columns: 118px minmax(0, 1fr);
+  gap: 8px 10px; align-items: center;
 }
 .voice-console > button[type="button"] {
-  padding: 11px 16px; color: #04130f; font-weight: 650;
+  grid-column: 1; width: 118px; padding: 11px 10px; color: #04130f; font-weight: 650;
   background: linear-gradient(135deg, #73f0d0, #66bfff);
+  user-select: none; touch-action: none;
 }
 .voice-console > button[type="button"][disabled] { opacity: .5; cursor: not-allowed; }
-.voice-console form { display: flex; flex: 1; gap: 8px; min-width: 300px; }
+.voice-console form { grid-column: 2; display: flex; gap: 8px; min-width: 0; }
 .voice-console form input {
   flex: 1; min-width: 0; padding: 11px 14px; color: #eaf8ff;
   border: 1px solid rgba(139, 210, 255, .22); border-radius: 11px; outline: none;
@@ -220,14 +222,39 @@ details b[data-status="rejected"] { color: #ff9e9e; }
 }
 .voice-console form button { padding: 0 16px; color: #c7e8f7; background: #163044; }
 .voice-console .transcript {
-  flex-basis: 100%; display: flex; gap: 8px; align-items: center;
+  grid-column: 1 / -1; min-height: 38px; display: flex; gap: 8px; align-items: center;
   color: #8fb4c8; font-size: 12px;
 }
+.voice-console .transcript-placeholder { color: #55727f; }
 .voice-console .transcript input {
   flex: 1; min-width: 0; padding: 8px 10px; color: #eaf8ff;
   border: 1px solid rgba(139, 210, 255, .18); border-radius: 9px;
   background: rgba(9, 28, 43, .9);
 }
 .voice-console .transcript button { padding: 7px 12px; color: #04130f; background: #7cf2d6; }
-.voice-console p[role="status"] { flex-basis: 100%; margin: 0; color: #ffd27f; font-size: 12px; }
+.voice-console p[role="status"] { grid-column: 1 / -1; min-height: 16px; margin: 0; color: #ffd27f; font-size: 12px; }
 .bridge-actions { max-width: 1100px; margin: 8px auto 0; display: flex; gap: 8px; }
+
+/* 第三关逐日播放 */
+.city-day[data-current="true"] {
+  border-color: #7cf2d6;
+  box-shadow: 0 0 0 1px rgba(124, 242, 214, .5), 0 0 18px rgba(124, 242, 214, .25);
+}
+.city-bar { height: 6px; margin-top: 6px; border-radius: 999px; background: #0d2431; overflow: hidden; }
+.city-bar i {
+  display: block; height: 100%; border-radius: 999px;
+  background: linear-gradient(90deg, #7cf2d6, #66bfff);
+  transition: width .7s ease;
+}
+.city-event {
+  margin: 0 0 10px; padding: 8px 12px; border-radius: 10px;
+  background: rgba(255, 210, 127, .12); color: #ffd27f; font-size: 12px;
+}
+.city-event[data-weather="normal"] { background: rgba(124, 242, 214, .10); color: #9ff2dd; }
+
+.object-legend {
+  max-width: 1100px; margin: 8px auto 0; display: flex; flex-wrap: wrap;
+  gap: 6px 16px; color: #8fb4c8; font-size: 11.5px;
+}
+.object-legend span { display: inline-flex; align-items: center; gap: 6px; }
+.object-legend i { display: inline-block; width: 10px; height: 10px; border-radius: 3px; }
