@@ -1,0 +1,14 @@
+{
+  "version": 1,
+  "levelId": "floating-bridge",
+  "worldRevision": 0,
+  "selectedObjectIds": [],
+  "objective": "跨过断裂山谷并抵达传送门",
+  "budgetRemaining": 100,
+  "objects": [
+    { "id": "stone.front", "kind": "stone", "label": "前方石块", "position": { "x": 320, "y": 500 }, "state": { "gravityScale": 1 }, "capabilities": ["move", "setGravity"], "immutable": false },
+    { "id": "exit.portal", "kind": "portal", "label": "出口传送门", "position": { "x": 1100, "y": 420 }, "state": { "active": true }, "capabilities": [], "immutable": true }
+  ],
+  "allowedCommands": ["physics.move", "physics.setGravity", "physics.applyForce", "mechanism.setState"]
+}
+

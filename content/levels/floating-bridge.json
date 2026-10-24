@@ -1,0 +1,15 @@
+{
+  "version": 1,
+  "id": "floating-bridge",
+  "name": "悬空之桥",
+  "mode": "platform",
+  "objective": "跨过断裂山谷并抵达传送门",
+  "budget": 100,
+  "allowedCommands": ["physics.move", "physics.setGravity", "physics.applyForce", "mechanism.setState"],
+  "immutableObjectIds": ["exit.portal", "world.goal"],
+  "successConditions": ["player.overlaps(exit.portal)"],
+  "testedSolutionIds": ["stone-stairs", "wind-and-crate"],
+  "hiddenAreas": ["cave.lower-left"],
+  "achievementIds": ["bridge-without-bridge", "cave-whisper"]
+}
+

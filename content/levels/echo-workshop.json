@@ -1,0 +1,15 @@
+{
+  "version": 1,
+  "id": "echo-workshop",
+  "name": "回声工坊",
+  "mode": "platform",
+  "objective": "恢复能源并启动中央传送设备",
+  "budget": 120,
+  "allowedCommands": ["mechanism.rotate", "mechanism.setState", "physics.move", "physics.applyForce"],
+  "immutableObjectIds": ["teleporter.core", "world.goal"],
+  "successConditions": ["receiver.powered == true", "door.exit == open", "platform.top == true"],
+  "testedSolutionIds": ["light-chain", "pressure-backup"],
+  "hiddenAreas": ["maintenance.tunnel"],
+  "achievementIds": ["perfect-reflection", "old-machinery"]
+}
+

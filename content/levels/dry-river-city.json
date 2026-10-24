@@ -1,0 +1,15 @@
+{
+  "version": 1,
+  "id": "dry-river-city",
+  "name": "断流之城",
+  "mode": "simulation",
+  "objective": "在第 7 天维持居民供水、供电可靠性和生态底线",
+  "budget": 200,
+  "allowedCommands": ["city.setPolicy", "city.advanceSimulation"],
+  "immutableObjectIds": ["city.success-thresholds", "weather.seed"],
+  "successConditions": ["residentialWater >= 90", "powerReliability >= 75", "ecologyIndex >= 60", "day == 7"],
+  "testedSolutionIds": ["resident-first-balanced", "night-irrigation-ecology"],
+  "hiddenAreas": ["old-observatory"],
+  "achievementIds": ["after-the-rain", "shared-prosperity", "prepared"]
+}
+
