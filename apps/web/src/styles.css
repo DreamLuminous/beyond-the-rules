@@ -1,0 +1,81 @@
+:root {
+  color: #e7f4ff;
+  background: #050b12;
+  font-family: Inter, "Microsoft YaHei", system-ui, sans-serif;
+  font-synthesis: none;
+}
+
+* { box-sizing: border-box; }
+body { margin: 0; min-width: 960px; min-height: 100vh; overflow: hidden; }
+button, input { font: inherit; }
+
+.app-shell {
+  width: 100vw;
+  height: 100vh;
+  display: grid;
+  grid-template-rows: 84px minmax(0, 1fr) auto;
+  background: radial-gradient(circle at 50% 0%, #13314a 0, #07131f 42%, #04090f 100%);
+}
+
+.hud {
+  display: grid;
+  grid-template-columns: 1fr minmax(380px, 1.5fr) 160px;
+  align-items: center;
+  gap: 30px;
+  padding: 12px 32px;
+  border-bottom: 1px solid rgba(133, 209, 255, .18);
+  background: rgba(5, 15, 25, .78);
+  backdrop-filter: blur(18px);
+}
+
+.eyebrow, .objective span, .resource span { color: #79abc7; font-size: 12px; letter-spacing: .12em; }
+h1 { margin: 3px 0 0; font-size: 24px; font-weight: 650; }
+.objective { display: flex; flex-direction: column; gap: 4px; }
+.objective strong { font-size: 14px; font-weight: 500; }
+.resource { text-align: right; }
+.resource strong { display: block; color: #8fffd3; font-size: 26px; }
+
+.game-stage { position: relative; min-height: 0; overflow: hidden; }
+.game-canvas, .game-canvas canvas { width: 100% !important; height: 100% !important; display: block; }
+.controls-hint {
+  position: absolute;
+  right: 22px;
+  top: 18px;
+  padding: 8px 12px;
+  border: 1px solid rgba(187, 229, 255, .16);
+  border-radius: 10px;
+  color: #93b5c8;
+  background: rgba(3, 10, 17, .55);
+  font-size: 12px;
+}
+
+.rule-console {
+  padding: 14px 28px 18px;
+  border-top: 1px solid rgba(133, 209, 255, .18);
+  background: rgba(5, 14, 23, .94);
+  box-shadow: 0 -18px 45px rgba(0, 0, 0, .25);
+}
+.rule-input-wrap { display: flex; gap: 10px; max-width: 1100px; margin: 0 auto; }
+.rule-input-wrap input {
+  flex: 1;
+  min-width: 0;
+  padding: 12px 16px;
+  color: #eaf8ff;
+  border: 1px solid rgba(139, 210, 255, .22);
+  border-radius: 12px;
+  outline: none;
+  background: rgba(9, 28, 43, .9);
+}
+.rule-input-wrap input:focus { border-color: #4dd5c0; box-shadow: 0 0 0 3px rgba(77, 213, 192, .12); }
+button { border: 0; border-radius: 11px; cursor: pointer; }
+.primary { padding: 0 20px; color: #04130f; font-weight: 650; background: linear-gradient(135deg, #73f0d0, #66bfff); }
+.secondary { padding: 0 17px; color: #c7e8f7; background: #163044; }
+.mic { width: 44px; color: #7897aa; background: #102433; cursor: not-allowed; }
+.status-line { max-width: 1100px; margin: 10px auto 0; color: #91b8ca; font-size: 13px; }
+.status-line i { display: inline-block; width: 7px; height: 7px; margin-right: 8px; border-radius: 50%; background: #5ce1ba; box-shadow: 0 0 10px #5ce1ba; }
+details { max-width: 1100px; margin: 8px auto 0; color: #789caf; font-size: 12px; }
+details ul { margin: 8px 0 0; padding: 8px 12px; list-style: none; border-radius: 10px; background: #091824; }
+details li { display: flex; justify-content: space-between; padding: 4px 0; }
+details b { color: #77e5c3; font-weight: 500; }
+details b[data-status="rejected"] { color: #ff9e9e; }
+
