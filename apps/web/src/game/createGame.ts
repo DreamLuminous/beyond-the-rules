@@ -6,7 +6,12 @@ export function createGame(parent: HTMLElement) {
     type: Phaser.AUTO,
     parent,
     backgroundColor: "#081522",
-    scale: { mode: Phaser.Scale.RESIZE, autoCenter: Phaser.Scale.CENTER_BOTH },
+    scale: {
+      mode: Phaser.Scale.NONE,
+      autoCenter: Phaser.Scale.CENTER_BOTH,
+      width: 1280,
+      height: 720
+    },
     physics: {
       default: "arcade",
       arcade: { gravity: { x: 0, y: 900 }, debug: false }

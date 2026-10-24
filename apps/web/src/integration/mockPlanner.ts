@@ -31,9 +31,13 @@ export function createLocalDemoPlan(input: string, world: WorldSnapshot): Action
   if (/推|吹|风/.test(input)) {
     return {
       version: 1, requestId, worldRevision: world.worldRevision,
-      summary: "向右推动木箱", estimatedCost: 8, requiresConfirmation: false,
-      steps: [{ id: "push-crate", dependsOn: [], trigger: { type: "immediate" },
-        command: { type: "physics.applyForce", targetId: "crate.wind", force: { x: 360, y: -40 }, durationTicks: 60 } }]
+      summary: "启动风场，把木箱吹向压力机关", estimatedCost: 18, requiresConfirmation: false,
+      steps: [
+        { id: "start-wind", dependsOn: [], trigger: { type: "immediate" },
+          command: { type: "mechanism.setState", targetId: "wind.field", state: "on" } },
+        { id: "push-crate", dependsOn: ["start-wind"], trigger: { type: "stepCompleted", stepId: "start-wind" },
+          command: { type: "physics.applyForce", targetId: "crate.wind", force: { x: 520, y: -60 }, durationTicks: 120 } }
+      ]
     };
   }
   return null;
