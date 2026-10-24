@@ -1,8 +1,16 @@
-import Phaser from "phaser";
+﻿import Phaser from "phaser";
 import type { ActionPlan, AgentPolicy, ExecutionResult, WorldSnapshot } from "@btr/contracts";
 import { preflight } from "@btr/rule-engine";
 import { gameBridge, type GameRuntime } from "../../integration/gameBridge";
 import { deriveBridgeMechanismState } from "../puzzles/floatingBridgeMechanisms";
+import {
+  BRIDGE_TASKS,
+  hasReachedExit,
+  hasReachedFarBank,
+  isOnFirstStone,
+  shouldRetractSlab,
+  type BridgeTaskId
+} from "../puzzles/bridgeTasks";
 
 type MutableBody = Phaser.Physics.Arcade.Sprite | Phaser.Physics.Arcade.Image;
 type ObjectState = { x: number; y: number; velocityX: number; velocityY: number; gravityY: number };
@@ -33,6 +41,13 @@ export class FloatingBridgeScene extends Phaser.Scene implements GameRuntime {
   private agentBusy = false;
   private agentPaused = false;
   private agentStatus: "idle" | "executing" | "paused" = "idle";
+  private task: BridgeTaskId = 1;
+  private serviceSlab!: Phaser.GameObjects.Rectangle;
+  private slabRetracted = false;
+  private groundRects: Phaser.GameObjects.Rectangle[] = [];
+  private waypoints = new Map<string, { x: number; y: number }>();
+  private taskStartedAt = 0;
+  private rulesApplied = 0;
 
   constructor() { super("floating-bridge"); }
 
@@ -46,13 +61,24 @@ export class FloatingBridgeScene extends Phaser.Scene implements GameRuntime {
     this.agentBusy = false;
     this.agentPaused = false;
     this.agentStatus = "idle";
+    this.revision = 0;
+    this.budget = 100;
+    this.undoStack = [];
+    this.reachedExit = false;
+    this.task = 1;
+    this.slabRetracted = false;
+    this.groundRects = [];
+    this.waypoints.clear();
+    this.rulesApplied = 0;
     this.createTextures();
     this.drawBackdrop();
     this.physics.world.setBounds(0, 0, 1800, 720);
     this.cameras.main.setBounds(0, 0, 1800, 720);
     const platforms = this.physics.add.staticGroup();
     this.addPlatform(platforms, 200, 580, 400, 72, 0x153b4f);
-    this.addPlatform(platforms, 1450, 560, 700, 92, 0x173e50);
+    this.addPlatform(platforms, 1150, 592, 600, 80, 0x173e50);
+    this.addPlatform(platforms, 1685, 592, 230, 80, 0x173e50);
+    this.serviceSlab = this.addPlatform(platforms, 1510, 592, 120, 80, 0x1d4c5e);
     this.addPlatform(platforms, 650, 705, 230, 26, 0x102b3d);
 
     this.player = this.physics.add.sprite(140, 490, "player").setDisplaySize(30, 48);
@@ -60,9 +86,10 @@ export class FloatingBridgeScene extends Phaser.Scene implements GameRuntime {
     this.player.body!.setSize(30, 48);
     this.cameras.main.startFollow(this.player, true, .08, .08);
 
-    const stone1 = this.createStone("stone.front", "前方石板", 460, 520);
+    const stone1 = this.createStone("stone.front", "前方石板", 460, 556);
     const stone2 = this.createStone("stone.middle", "中央石板", 650, 610);
     const stone3 = this.createStone("stone.far", "远处石板", 880, 500);
+    const stone4 = this.createStone("stone.slab", "检修石板", 1050, 560);
     const crate = this.createBody("crate.wind", "风场木箱", 300, 510, 44, 44, 0xc7935b);
     this.crate = crate;
 
@@ -86,10 +113,16 @@ export class FloatingBridgeScene extends Phaser.Scene implements GameRuntime {
     this.add.text(878, 704, "旧桥辅助平台", { color: "#4e7b88", fontSize: "12px" });
 
     this.physics.add.collider(this.player, platforms);
-    this.physics.add.collider(this.player, [stone1, stone2, stone3, crate]);
+    this.physics.add.collider(this.player, [stone1, stone2, stone3, stone4, crate]);
     this.physics.add.collider(this.player, this.auxiliaryPlatform);
-    this.physics.add.collider([stone1, stone2, stone3, crate], platforms);
-    this.physics.add.collider([stone1, stone2, stone3, crate], [stone1, stone2, stone3, crate]);
+    this.physics.add.collider([stone1, stone2, stone3, stone4, crate], platforms);
+    this.physics.add.collider(
+      [stone1, stone2, stone3, stone4, crate],
+      [stone1, stone2, stone3, stone4, crate]
+    );
+
+    this.waypoints.set("waypoint.far", { x: 1000, y: 528 });
+    this.waypoints.set("waypoint.exit", { x: 1680, y: 528 });
 
     const exit = this.add.rectangle(1690, 460, 54, 110, 0x64f4d2, .25).setStrokeStyle(3, 0x8effe6);
     this.physics.add.existing(exit, true);
@@ -99,8 +132,11 @@ export class FloatingBridgeScene extends Phaser.Scene implements GameRuntime {
     this.add.text(55, 400, "起点 · 指导墨点", { color: "#7ba7ba", fontSize: "14px" });
     this.add.text(1260, 400, "终点区", { color: "#7ba7ba", fontSize: "14px" });
     this.add.text(535, 656, "隐藏的谷底平台", { color: "#426e80", fontSize: "12px" });
+    this.add.text(1442, 528, "检修桥板", { color: "#5f9eae", fontSize: "12px" });
+    this.taskStartedAt = this.time.now;
     gameBridge.attach(this);
     this.emitSnapshot();
+    this.emitTask();
   }
 
   update() {
@@ -109,6 +145,18 @@ export class FloatingBridgeScene extends Phaser.Scene implements GameRuntime {
     const crateInWindZone = Phaser.Geom.Rectangle.Contains(this.windZone.getBounds(), this.crate.x, this.crate.y);
     crateBody.setAccelerationX(windEnabled && crateInWindZone ? 260 : 0);
     this.updatePressureMechanism();
+
+    if (!this.player?.body) return;
+    const grounded = (this.player.body as Phaser.Physics.Arcade.Body).blocked.down;
+    const feetY = this.player.y + 24;
+
+    if (this.task === 1 && isOnFirstStone(this.player.x, feetY, grounded)) {
+      this.completeTask(1);
+    } else if (this.task === 2 && hasReachedFarBank(this.player.x, grounded)) {
+      this.completeTask(2);
+    } else if (this.task === 3 && !this.slabRetracted && shouldRetractSlab(this.player.x)) {
+      this.retractServiceSlab();
+    }
   }
 
   getSnapshot(): WorldSnapshot {
@@ -149,12 +197,23 @@ export class FloatingBridgeScene extends Phaser.Scene implements GameRuntime {
         state: { active: this.auxiliaryPlatformActive }, capabilities: [], immutable: true
       }
     );
+    for (const [id, point] of this.waypoints) {
+      objects.push({
+        id,
+        kind: "waypoint",
+        label: id === "waypoint.exit" ? "对岸装置前" : "对岸落脚点",
+        position: { x: point.x, y: point.y },
+        state: {},
+        capabilities: [],
+        immutable: true
+      });
+    }
     return {
       version: 1,
       levelId: "floating-bridge",
       worldRevision: this.revision,
       selectedObjectIds: [],
-      objective: "指导墨点安全跨越断谷并启动对岸装置",
+      objective: BRIDGE_TASKS[this.task].objective,
       constraints: ["避免坠入断谷", "不得移动固定地形", "只执行能力清单允许的行动"],
       budgetRemaining: this.budget,
       allowedCommands: ["physics.move", "physics.setGravity", "physics.applyForce", "mechanism.setState"],
@@ -202,6 +261,7 @@ export class FloatingBridgeScene extends Phaser.Scene implements GameRuntime {
       stepResults.push({ stepId: step.id, status: "completed", message: "步骤已完成", changes: [command.type] });
     }
     this.budget = Math.max(0, this.budget - plan.estimatedCost);
+    this.rulesApplied += 1;
     this.revision += 1;
     this.emitSnapshot();
     return this.result(plan, "completed", before.worldRevision, `规则已生效：${plan.summary}`, stepResults);
@@ -247,7 +307,7 @@ export class FloatingBridgeScene extends Phaser.Scene implements GameRuntime {
         if (target) this.flashRule(target, "墨点正在观察");
         await this.waitForAgent(450);
       } else if (action.type === "navigate") {
-        const target = this.objects.get(action.targetId);
+        const target = this.objects.get(action.targetId) ?? this.waypoints.get(action.targetId);
         completed = target ? await this.moveAgentNear(target, action.stopDistance) : false;
       } else if (action.type === "push") {
         const target = this.objects.get(action.targetId);
@@ -276,7 +336,11 @@ export class FloatingBridgeScene extends Phaser.Scene implements GameRuntime {
         return {
           version: 1, requestId: policy.requestId, status: "rejected",
           worldRevisionBefore: before.worldRevision, worldRevisionAfter: this.revision,
-          stepResults, userMessage: "墨点停止了：当前路径无法安全到达目标。"
+          stepResults,
+          userMessage:
+            this.task === 3 && this.slabRetracted
+              ? "墨点停在缺口前：检修桥板缩回了。用规则把石板移到缺口，或让它重新规划。"
+              : "墨点停止了：当前路径无法安全到达目标。"
         };
       }
       stepResults.push({
@@ -334,7 +398,10 @@ export class FloatingBridgeScene extends Phaser.Scene implements GameRuntime {
   }
 
   private createStone(id: string, label: string, x: number, y: number) {
-    return this.createBody(id, label, x, y, 116, 24, 0x4b8292);
+    const stone = this.createBody(id, label, x, y, 116, 24, 0x4b8292);
+    const body = stone.body as Phaser.Physics.Arcade.Body;
+    body.setAllowGravity(false).setImmovable(true);
+    return stone;
   }
 
   private createBody(id: string, label: string, x: number, y: number, width: number, height: number, color: number) {
@@ -350,6 +417,8 @@ export class FloatingBridgeScene extends Phaser.Scene implements GameRuntime {
     const platform = this.add.rectangle(x, y, width, height, color).setStrokeStyle(2, 0x2d6071);
     this.physics.add.existing(platform, true);
     group.add(platform);
+    this.groundRects.push(platform);
+    return platform;
   }
 
   private capture(frame: UndoFrame, id: string) {
@@ -379,7 +448,7 @@ export class FloatingBridgeScene extends Phaser.Scene implements GameRuntime {
     this.tweens.add({ targets: text, y: text.y - 18, alpha: 0, duration: 900, onComplete: () => text.destroy() });
   }
 
-  private moveAgentNear(target: MutableBody, stopDistance: number) {
+  private moveAgentNear(target: { x: number; y: number }, stopDistance: number) {
     return new Promise<boolean>(resolve => {
       let activeTicks = 0;
       const timer = this.time.addEvent({
@@ -404,7 +473,14 @@ export class FloatingBridgeScene extends Phaser.Scene implements GameRuntime {
             resolve(false);
             return;
           }
-          this.player.setVelocityX(Math.sign(difference) * 175);
+          const direction = Math.sign(difference);
+          if (!this.hasGroundAhead(direction)) {
+            this.player.setVelocityX(0);
+            timer.remove(false);
+            resolve(false);
+            return;
+          }
+          this.player.setVelocityX(direction * 175);
         }
       });
     });
@@ -466,9 +542,71 @@ export class FloatingBridgeScene extends Phaser.Scene implements GameRuntime {
 
   private emitSnapshot() { gameBridge.publishSnapshot(this.getSnapshot()); }
 
+  private emitTask() {
+    const info = BRIDGE_TASKS[this.task];
+    gameBridge.emit("bridgeTask", {
+      task: this.task,
+      title: info.title,
+      objective: info.objective,
+      hint: info.hint
+    });
+  }
+
+  private hasGroundAhead(direction: number): boolean {
+    const body = this.player.body as Phaser.Physics.Arcade.Body;
+    if (!body.blocked.down) return true;
+    const x = this.player.x + direction * 46;
+    const feetY = this.player.y + 24;
+    const supported = (rect: Phaser.GameObjects.Rectangle | MutableBody) => {
+      const bounds = rect.getBounds();
+      return x >= bounds.left - 6 && x <= bounds.right + 6 && feetY >= bounds.top - 8 && feetY <= bounds.top + 26;
+    };
+    return this.groundRects.some(supported) || [...this.objects.values()].some(supported);
+  }
+
+  private completeTask(task: BridgeTaskId) {
+    if (task === 1 && this.task === 1) {
+      this.task = 2;
+      this.showBanner("任务一完成 · 墨点站上了第一块石板");
+      this.emitTask();
+      this.emitSnapshot();
+      return;
+    }
+    if (task === 2 && this.task === 2) {
+      this.task = 3;
+      this.showBanner("任务二完成 · 墨点已经到达对岸");
+      this.emitTask();
+      this.emitSnapshot();
+    }
+  }
+
+  private retractServiceSlab() {
+    if (this.slabRetracted) return;
+    this.slabRetracted = true;
+    const body = this.serviceSlab.body as Phaser.Physics.Arcade.StaticBody;
+    body.enable = false;
+    this.tweens.add({ targets: this.serviceSlab, y: this.serviceSlab.y + 150, alpha: 0.25, duration: 650 });
+    this.showBanner("意外变化 · 检修桥板缩回了");
+    this.emitTask();
+    this.emitSnapshot();
+  }
+
+  private showBanner(message: string) {
+    const banner = this.add.text(this.scale.width / 2, 130, message, {
+      color: "#d8fff3", fontSize: "26px", backgroundColor: "#0b2f37", padding: { x: 22, y: 12 }
+    }).setOrigin(.5).setScrollFactor(0).setDepth(30);
+    this.tweens.add({ targets: banner, alpha: 0, delay: 2200, duration: 600 });
+  }
+
   private onReachExit() {
     if (this.reachedExit) return;
     this.reachedExit = true;
+    this.task = 3;
+    gameBridge.emit("bridgeComplete", {
+      elapsedMs: Math.max(0, Math.round(this.time.now - this.taskStartedAt)),
+      tasks: 3,
+      rulesApplied: this.rulesApplied
+    });
     const banner = this.add.text(this.scale.width / 2, 120, "规则成立 · 已抵达彼岸", {
       color: "#d8fff3", fontSize: "28px", backgroundColor: "#0b2f37", padding: { x: 22, y: 12 }
     }).setOrigin(.5).setScrollFactor(0).setDepth(10);
@@ -476,8 +614,8 @@ export class FloatingBridgeScene extends Phaser.Scene implements GameRuntime {
   }
 
   private drawBackdrop() {
-    const width = Math.max(this.scale.width, 1800);
-    const height = Math.max(this.scale.height, 720);
+    const width = 1800;
+    const height = 720;
     const graphics = this.add.graphics();
     graphics.fillGradientStyle(0x0c2336, 0x0c2336, 0x06101b, 0x06101b, 1);
     graphics.fillRect(0, 0, width, height);

@@ -3,13 +3,16 @@
   "id": "echo-workshop",
   "name": "回声工坊",
   "mode": "platform",
-  "objective": "恢复能源并启动中央传送设备",
+  "objective": "让墨点根据你的描述生成一关，你亲自通关并评价",
   "budget": 120,
-  "allowedCommands": ["mechanism.rotate", "mechanism.setState", "physics.move", "physics.applyForce"],
-  "immutableObjectIds": ["teleporter.core", "world.goal"],
-  "successConditions": ["receiver.powered == true", "door.exit == open", "platform.top == true"],
-  "testedSolutionIds": ["light-chain", "pressure-backup"],
-  "hiddenAreas": ["maintenance.tunnel"],
-  "achievementIds": ["perfect-reflection", "old-machinery"]
+  "allowedCommands": ["mechanism.setState", "mechanism.rotate", "physics.move"],
+  "immutableObjectIds": ["exit.portal", "world.goal"],
+  "successConditions": [
+    "level.validation.ok == true",
+    "player.reaches(exit.portal)",
+    "receiver-1.lit && receiver-2.lit"
+  ],
+  "testedSolutionIds": ["mirror-chain", "staged-gates"],
+  "hiddenAreas": ["hidden.shelf"],
+  "achievementIds": ["perfect-reflection", "hidden-shelf", "repaired-design"]
 }
-

@@ -1,10 +1,50 @@
 [
-  { "id": "bridge-without-bridge", "name": "没有桥的桥", "condition": "不用三块石板完整拼桥通关" },
-  { "id": "cave-whisper", "name": "谷底回声", "condition": "发现悬空之桥隐藏洞穴" },
-  { "id": "perfect-reflection", "name": "一次成光", "condition": "不撤销地完成光路" },
-  { "id": "old-machinery", "name": "旧路仍通", "condition": "使用备用机械通路" },
-  { "id": "after-the-rain", "name": "雨过天晴", "condition": "不扩建水库完成任务" },
-  { "id": "shared-prosperity", "name": "共同繁荣", "condition": "通关且农业产出保持 75 以上" },
-  { "id": "prepared", "name": "未雨绸缪", "condition": "危机发生前完成预防策略" }
+  {
+    "id": "first-guidance",
+    "name": "第一次指导",
+    "chapter": 1,
+    "condition": "在第一关用一句话让墨点完成第一个任务"
+  },
+  {
+    "id": "bridge-without-bridge",
+    "name": "桥外之路",
+    "chapter": 1,
+    "condition": "不使用旧桥机关完成过桥"
+  },
+  {
+    "id": "cave-whisper",
+    "name": "谷底回声",
+    "chapter": 1,
+    "condition": "发现悬空之桥下方的异常记录"
+  },
+  {
+    "id": "perfect-reflection",
+    "name": "一次校准",
+    "chapter": 2,
+    "condition": "不依赖撤销，一次调整好两面镜子并通关"
+  },
+  {
+    "id": "hidden-shelf",
+    "name": "书架背后",
+    "chapter": 2,
+    "condition": "在回声工坊找到隐藏书架上的异常记录"
+  },
+  {
+    "id": "repaired-design",
+    "name": "会修的设计",
+    "chapter": 2,
+    "condition": "指出 AI 生成关卡中的不可达点，并让新版本通过验证"
+  },
+  {
+    "id": "first-creation",
+    "name": "第一次共同创作",
+    "chapter": 2,
+    "condition": "用反馈重设计出一版关卡并亲自通关"
+  },
+  {
+    "id": "after-the-rain",
+    "name": "雨过天晴",
+    "chapter": 3,
+    "condition": "在突发干旱事件中保住居民供水并通过七日检查"
+  }
 ]
-

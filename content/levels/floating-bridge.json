@@ -3,12 +3,17 @@
   "id": "floating-bridge",
   "name": "悬空之桥",
   "mode": "platform",
-  "objective": "跨过断裂山谷并抵达传送门",
+  "objective": "指导墨点跨过断裂山谷并启动对岸装置",
+  "tasks": [
+    { "id": "first-guidance", "goal": "用一句自然语言让墨点到达第一个安全平台" },
+    { "id": "open-crossing", "goal": "自由选择石板、木箱、风场或旧桥机关过桥" },
+    { "id": "shifted-platform", "goal": "平台位移后观察最新状态并调整原有策略" }
+  ],
   "budget": 100,
   "allowedCommands": ["physics.move", "physics.setGravity", "physics.applyForce", "mechanism.setState"],
   "immutableObjectIds": ["exit.portal", "world.goal"],
   "successConditions": ["player.overlaps(exit.portal)"],
-  "testedSolutionIds": ["stone-stairs", "wind-and-crate"],
+  "testedSolutionIds": ["stone-walkway", "wind-and-crate"],
   "hiddenAreas": ["cave.lower-left"],
   "achievementIds": ["bridge-without-bridge", "cave-whisper"]
 }

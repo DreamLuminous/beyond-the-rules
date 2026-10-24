@@ -17,6 +17,38 @@ describe("shared creation contracts", () => {
     expect(result.success).toBe(true);
   });
 
+  it("accepts compound city rules with whitelisted actions", () => {
+    const result = RuleScriptSchema.safeParse({
+      version: 1,
+      id: "rule.city-test",
+      name: "城市规则",
+      rules: [
+        {
+          id: "rule.emergency",
+          when: {
+            type: "all",
+            conditions: [
+              { type: "objectState", targetId: "reservoir", property: "level", operator: "lessThan", value: 30 },
+              { type: "objectState", targetId: "weather", property: "drought", operator: "equals", value: true }
+            ]
+          },
+          then: [
+            {
+              type: "city.setPolicy",
+              waterAllocation: { residential: 55, agriculture: 12, industry: 8, ecology: 25 },
+              irrigationWindow: "balanced",
+              industryCap: 20
+            },
+            { type: "city.setIrrigation", enabled: false, minimumReserve: 20 },
+            { type: "city.setFacility", facilityId: "pump.spare", enabled: true }
+          ],
+          once: false
+        }
+      ]
+    });
+    expect(result.success).toBe(true);
+  });
+
   it("accepts only declarative commands in RuleScript", () => {
     const safe = RuleScriptSchema.safeParse({
       version: 1,

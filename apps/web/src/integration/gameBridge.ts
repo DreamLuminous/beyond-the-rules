@@ -8,11 +8,45 @@ export interface GameRuntime {
   undo(): Promise<ExecutionResult | null>;
 }
 
-type Events = { snapshot: WorldSnapshot };
+export type WorkshopResult = {
+  levelId: string;
+  elapsedMs: number;
+  mirrorRotations: number;
+  hiddenFound: boolean;
+};
+
+export type BridgeTaskEvent = {
+  task: 1 | 2 | 3;
+  title: string;
+  objective: string;
+  hint: string;
+};
+
+export type BridgeComplete = {
+  elapsedMs: number;
+  tasks: number;
+  rulesApplied: number;
+};
+
+type Events = {
+  snapshot: WorldSnapshot;
+  workshopComplete: WorkshopResult;
+  workshopHidden: { levelId: string; logId: string };
+  bridgeTask: BridgeTaskEvent;
+  bridgeComplete: BridgeComplete;
+};
 
 class GameBridge {
   private runtime: GameRuntime | null = null;
-  private listeners = new Set<(snapshot: WorldSnapshot) => void>();
+  private listeners: {
+    [K in keyof Events]: Set<(value: Events[K]) => void>;
+  } = {
+    snapshot: new Set(),
+    workshopComplete: new Set(),
+    workshopHidden: new Set(),
+    bridgeTask: new Set(),
+    bridgeComplete: new Set()
+  };
 
   attach(runtime: GameRuntime) {
     this.runtime = runtime;
@@ -34,15 +68,18 @@ class GameBridge {
 
   undo() { return this.runtime?.undo() ?? Promise.resolve(null); }
 
-  publishSnapshot(snapshot: WorldSnapshot) {
-    for (const listener of this.listeners) listener(snapshot);
+  emit<K extends keyof Events>(event: K, value: Events[K]) {
+    for (const listener of this.listeners[event]) listener(value);
   }
 
+  publishSnapshot(snapshot: WorldSnapshot) { this.emit("snapshot", snapshot); }
+
   on<K extends keyof Events>(event: K, listener: (value: Events[K]) => void) {
-    if (event === "snapshot") this.listeners.add(listener as (snapshot: WorldSnapshot) => void);
-    return () => this.listeners.delete(listener as (snapshot: WorldSnapshot) => void);
+    this.listeners[event].add(listener as never);
+    return () => {
+      this.listeners[event].delete(listener as never);
+    };
   }
 }
 
 export const gameBridge = new GameBridge();
-
